@@ -2,9 +2,10 @@ import openurl from "better-opn"
 import report from "gatsby-cli/lib/reporter"
 import formatWebpackMessages from "react-dev-utils/formatWebpackMessages"
 import chalk from "chalk"
-import { Compiler } from "webpack"
+import webpack, { Compiler } from "webpack"
 import { isEqual } from "lodash"
 import { Stage } from "../commands/types"
+import semver from "semver"
 
 import {
   reportWebpackWarnings,
@@ -25,6 +26,8 @@ import {
 import { enqueueFlush } from "../utils/page-data"
 import mapTemplatesToStaticQueryHashes from "../utils/map-templates-to-static-query-hashes"
 import { emitter } from "../redux"
+
+const webpackMajor = semver.major(webpack.version)
 
 export async function startWebpackServer({
   program,
@@ -89,7 +92,16 @@ export async function startWebpackServer({
       // We have switched off the default Webpack output in WebpackDevServer
       // options so we are going to "massage" the warnings and errors and present
       // them in a readable focused way.
-      const messages = formatWebpackMessages(stats.toJson({}, true))
+      const jsonStats = stats.toJson({})
+      let errors = jsonStats.errors
+      let warnings = jsonStats.warnings
+
+      if (webpackMajor >= 5) {
+        errors = jsonStats.errors.map(error => error.message)
+        warnings = jsonStats.warnings.map(warning => warning.message)
+      }
+
+      const messages = formatWebpackMessages({ errors, warnings })
       const urls = prepareUrls(
         program.https ? `https` : `http`,
         program.host,
@@ -141,7 +153,6 @@ export async function startWebpackServer({
           state,
           stats.compilation
         )
-
         mapOfTemplatesToStaticQueryHashes.forEach(
           (staticQueryHashes, componentPath) => {
             if (
@@ -167,7 +178,6 @@ export async function startWebpackServer({
             }
           }
         )
-
         enqueueFlush()
       }
 

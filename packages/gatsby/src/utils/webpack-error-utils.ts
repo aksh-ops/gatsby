@@ -1,5 +1,5 @@
 import reporter from "gatsby-cli/lib/reporter"
-import { Stats } from "webpack"
+import { Stats, WebpackError } from "webpack"
 import { IMatch } from "../types"
 import { Stage as StageEnum } from "../commands/types"
 
@@ -100,7 +100,7 @@ const transformWebpackError = (
 
 export const structureWebpackErrors = (
   stage: StageEnum,
-  webpackError: any
+  webpackError: WebpackError
 ): Array<ITransformedWebpackError> | ITransformedWebpackError => {
   if (Array.isArray(webpackError)) {
     return webpackError.map(e => transformWebpackError(stage, e))

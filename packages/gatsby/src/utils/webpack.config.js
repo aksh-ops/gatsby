@@ -18,6 +18,7 @@ const apiRunnerNode = require(`./api-runner-node`)
 import { createWebpackUtils, ensureRequireEslintRules } from "./webpack-utils"
 import { hasLocalEslint } from "./local-eslint-config-finder"
 import { getAbsolutePathForVirtualModule } from "./gatsby-webpack-virtual-modules"
+import { StaticQueryMapper } from "./webpack/static-query-mapper"
 
 const FRAMEWORK_BUNDLES = [`react`, `react-dom`, `scheduler`, `prop-types`]
 
@@ -228,15 +229,19 @@ module.exports = async (
             plugins.hotModuleReplacement(),
             plugins.noEmitOnErrors(),
             plugins.eslintGraphqlSchemaReload(),
+            new StaticQueryMapper(store),
           ])
           .filter(Boolean)
+
+        configPlugins.push(
+          plugins.extractText({
+            filename: `[name].css`,
+            chunkFilename: `[id].css`,
+          })
+        )
+
         if (process.env.GATSBY_EXPERIMENTAL_DEV_SSR) {
-          // Don't use the default mini-css-extract-plugin setup as that
-          // breaks hmr.
-          configPlugins.push(
-            plugins.extractText({ filename: `[name].css` }),
-            plugins.extractStats()
-          )
+          configPlugins.push(plugins.extractStats())
         }
         break
       case `build-javascript`: {
@@ -248,6 +253,7 @@ module.exports = async (
           // Write out stats object mapping named dynamic imports (aka page
           // components) to all their async chunks.
           plugins.extractStats(),
+          new StaticQueryMapper(store),
         ])
         break
       }
@@ -280,7 +286,7 @@ module.exports = async (
       case `develop`:
       case `develop-html`:
       case `build-html`:
-        return `development` // So we don't uglify the html bundle
+        return `none` // So we don't uglify the html bundle
       default:
         return `production`
     }
@@ -519,10 +525,6 @@ module.exports = async (
 
     resolveLoader: getResolveLoader(),
     resolve: getResolve(stage),
-
-    node: {
-      __filename: true,
-    },
   }
 
   if (stage === `build-javascript`) {
@@ -622,9 +624,7 @@ module.exports = async (
         name: `webpack-runtime`,
       },
       // use hashes instead of ids for module identifiers
-      // TODO update to deterministic in webpack 5 (hashed is deprecated)
-      // @see https://webpack.js.org/guides/caching/#module-identifiers
-      moduleIds: `hashed`,
+      moduleIds: `deterministic`,
       splitChunks,
       minimizer: [
         // TODO: maybe this option should be noMinimize?
